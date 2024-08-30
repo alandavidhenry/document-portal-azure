@@ -4,10 +4,25 @@ var express = require("express");
 var path = require("path");
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
+const { BlobServiceClient } = require("@azure/storage-blob");
 
 var indexRouter = require("./routes/index");
 
 var app = express();
+
+// Use Azure for prod or Azurite for local
+const connectionString = process.env.NODE_ENV === 'production' 
+? process.env.AZURE_STORAGE_CONNECTION_STRING
+: "UseDevelopmentStorage=true";
+
+// Azure Blob Storage setup
+const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+
+// Make Azure services available to routes
+app.use((req, res, next) => {
+  req.blobServiceClient = blobServiceClient;
+  next();
+});
 
 // view engine setup
 app.set("views", path.join(__dirname, "views"));
