@@ -8,21 +8,12 @@ router.get("/", function (req, res, next) {
 
 /* GET links page. */
 router.get("/documents", async (req, res) => {
-  try {
-    const doc1Url = await getSignedUrl("document1.pdf");
-    const doc2Url = await getSignedUrl("document2.pdf");
-    const doc3Url = await getSignedUrl("document3.pdf");
-    res.render("documents", {
-      title: "Document Portal",
-      doc1Url,
-      doc2Url,
-      doc3Url,
-    });
-    console.log("route url:", url);
-  } catch (error) {
-    console.error("Error generating signed URLs:", error);
-    res.status(500).send("Error accessing documents" + error.message);
-  }
+  res.render("documents", {
+    title: "Document Portal",
+    doc1Url: '/#',
+    doc2Url: '/#',
+    doc3Url: '/#',
+  });
 });
 
 module.exports = router;
