@@ -2,10 +2,19 @@ const express = require("express");
 const router = express.Router();
 const msal = require("@azure/msal-node");
 
+// Define a function to get the correct redirect URI
+function getRedirectUri(req) {
+  if (process.env.NODE_ENV === "production") {
+    return `https://${req.get("host")}/auth/redirect`;
+  }
+  return "http://localhost:3000/auth/redirect";
+}
+
 router.get("/login", (req, res) => {
+  const redirectUri = getRedirectUri(req);
   const authCodeUrlParameters = {
     scopes: ["user.read"],
-    redirectUri: "http://localhost:3000/auth/redirect",
+    redirectUri: redirectUri,
   };
 
   req.msalClient
@@ -17,10 +26,11 @@ router.get("/login", (req, res) => {
 });
 
 router.get("/redirect", (req, res) => {
+  const redirectUri = getRedirectUri(req);
   const tokenRequest = {
     code: req.query.code,
     scopes: ["user.read"],
-    redirectUri: "http://localhost:3000/auth/redirect",
+    redirectUri: redirectUri,
   };
 
   req.msalClient
@@ -31,7 +41,7 @@ router.get("/redirect", (req, res) => {
 
       // Here you would typically fetch the user's role from your database
       // For this example, we'll just set a default role
-      req.session.userRole = "Customer";
+      req.session.userRole = "Admin";
 
       res.redirect("/documents");
     })
