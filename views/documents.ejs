@@ -6,18 +6,32 @@
   </head>
   <body>
     <h1><%= title %></h1>
-    <p>Simon's <%= title %></p>
+    <p>Welcome, <%= user.name %> (<%= userRole %>)</p>
     <ul>
+      <% documents.forEach(function(doc) { %>
       <li>
-        <p><a href="<%= doc1Url %>">Document 1</a></p>
+        <a href="/document/<%= doc %>"><%= doc %></a>
+        <% if (userRole === 'Admin' || userRole === 'Employee') { %>
+        <form
+          action="/document/<%= doc %>"
+          method="POST"
+          style="display: inline"
+        >
+          <input type="hidden" name="_method" value="DELETE" />
+          <button type="submit">Delete</button>
+        </form>
+        <% } %>
       </li>
-      <li>
-        <p><a href="<%= doc2Url %>">Document 2</a></p>
-      </li>
-      <li>
-        <p><a href="<%= doc3Url %>">Document 3</a></p>
-      </li>
+      <% }); %>
     </ul>
+    <% if (userRole === 'Admin' || userRole === 'Employee') { %>
+    <h2>Upload New Document</h2>
+    <form action="/document/upload" method="POST" enctype="multipart/form-data">
+      <input type="file" name="document" accept=".pdf" required />
+      <button type="submit">Upload</button>
+    </form>
+    <% } %>
     <a href="/">Back to home</a>
+    <a href="/auth/logout">Logout</a>
   </body>
 </html>

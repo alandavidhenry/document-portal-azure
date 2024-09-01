@@ -7,13 +7,16 @@
   <body>
     <h1><%= title %></h1>
     <p>Welcome to Simon's <%= title %></p>
+    <% if (user) { %>
+    <p>Hello, <%= user.name %></p>
     <ul>
-      <li>
-        <p><a href="#">Sign in</a></p>
-      </li>
-      <li>
-        <p><a href="documents">Documents</a></p>
-      </li>
+      <li><a href="/documents">Documents</a></li>
+      <li><a href="/auth/logout">Logout</a></li>
     </ul>
+    <% } else { %>
+    <ul>
+      <li><a href="/auth/login">Sign in</a></li>
+    </ul>
+    <% } %>
   </body>
 </html>

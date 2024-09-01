@@ -1,26 +1,53 @@
-require('dotenv').config();
-var createError = require("http-errors");
-var express = require("express");
-var path = require("path");
-var cookieParser = require("cookie-parser");
-var logger = require("morgan");
+require("dotenv").config();
+const createError = require("http-errors");
+const express = require("express");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const logger = require("morgan");
 const { BlobServiceClient } = require("@azure/storage-blob");
+const session = require("express-session");
+const msal = require("@azure/msal-node");
 
-var indexRouter = require("./routes/index");
+const indexRouter = require("./routes/index");
+const authRouter = require("./routes/auth");
 
-var app = express();
+const app = express();
 
 // Use Azure for prod or Azurite for local
-const connectionString = process.env.NODE_ENV === 'production' 
-? process.env.AZURE_STORAGE_CONNECTION_STRING
-: "UseDevelopmentStorage=true";
+const connectionString =
+  process.env.NODE_ENV === "production"
+    ? process.env.AZURE_STORAGE_CONNECTION_STRING
+    : "UseDevelopmentStorage=true";
 
 // Azure Blob Storage setup
-const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+const blobServiceClient =
+  BlobServiceClient.fromConnectionString(connectionString);
+
+// MSAL config
+const msalConfig = {
+  auth: {
+    clientId: process.env.MICROSOFT_ENTRA_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${process.env.MICROSOFT_ENTRA_TENANT_ID}`,
+    clientSecret: process.env.MICROSOFT_ENTRA_CLIENT_SECRET,
+  },
+};
+
+const msalClient = new msal.ConfidentialClientApplication(msalConfig);
+
+// Session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === "production" },
+  })
+);
 
 // Make Azure services available to routes
 app.use((req, res, next) => {
   req.blobServiceClient = blobServiceClient;
+  req.msalClient = msalClient;
   next();
 });
 
@@ -35,6 +62,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
+app.use("/auth", authRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

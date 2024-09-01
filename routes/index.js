@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
+const { isAuthenticated, hasRole } = require("../middlewares/auth");
 
 /* GET home page. */
 router.get("/", function (req, res, next) {
-  res.render("index", { title: "Document Portal" });
+  res.render("index", { title: "Document Portal", user: req.session.user });
 });
 
 /* GET documents page. */
-router.get("/documents", async (req, res) => {
+router.get("/documents", isAuthenticated, hasRole(['Admin', 'Employee', 'Customer']), async (req, res) => {
   const containerClient = req.blobServiceClient.getContainerClient("pdfs");
 
   let blobs = containerClient.listBlobsFlat();
@@ -19,23 +20,30 @@ router.get("/documents", async (req, res) => {
 
   res.render("documents", {
     title: "Document Portal",
-    doc1Url: documents[0] ? `/document/${documents[0]}` : '#',
-    doc2Url: documents[1] ? `/document/${documents[1]}` : '#',
-    doc3Url: documents[2] ? `/document/${documents[2]}` : '#',
+    documents: documents,
+    user: req.session.user,
+    userRole: req.session.userRole
   });
 });
 
 /* GET specific document. */
-router.get("/document/:name", async (req, res) => {
-  const containerClient = req.blobServiceClient.getContainerClient('pdfs');
-  const blobClient = containerClient.getBlobClient(req.params.name);
+router.get(
+  "/document/:name",
+  isAuthenticated,
+  hasRole(["Admin", "Employee", "Customer"]),
+  async (req, res) => {
+    const containerClient = req.blobServiceClient.getContainerClient("pdfs");
+    const blobClient = containerClient.getBlobClient(req.params.name);
 
-  const downloadBlockBlobResponse = await blobClient.download();
-  const downloaded = await streamToBuffer(downloadBlockBlobResponse.readableStreamBody);
+    const downloadBlockBlobResponse = await blobClient.download();
+    const downloaded = await streamToBuffer(
+      downloadBlockBlobResponse.readableStreamBody
+    );
 
-  res.contentType('application/pdf');
-  res.send(downloaded);
-});
+    res.contentType("application/pdf");
+    res.send(downloaded);
+  }
+);
 
 // Helper function to convert stream to buffer
 async function streamToBuffer(readableStream) {
