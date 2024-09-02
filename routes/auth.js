@@ -1,25 +1,41 @@
 const express = require("express");
 const router = express.Router();
 const msal = require("@azure/msal-node");
+const winston = require("winston");
 
-// Define a function to get the correct redirect URI
+// Setup Winston logger
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.json(),
+  defaultMeta: { service: "auth-service" },
+  transports: [
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
+  ],
+});
+
+if (process.env.NODE_ENV !== "production") {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    })
+  );
+}
+
 function getRedirectUri(req) {
   if (process.env.NODE_ENV === "production") {
     return `https://${req.get("host")}/auth/redirect`;
   } else {
-    // For local development, use the HTTPS URL
     return (
       process.env.LOCAL_REDIRECT_URI || "http://localhost:3000/auth/redirect"
     );
   }
 }
 
-// Define a function to get the post-logout redirect URI
 function getPostLogoutRedirectUri(req) {
   if (process.env.NODE_ENV === "production") {
     return `https://${req.get("host")}/`;
   } else {
-    // For local development, use the HTTPS URL
     return process.env.LOCAL_URI || "http://localhost:3000/";
   }
 }
@@ -29,7 +45,6 @@ router.get("/login", (req, res) => {
   const authCodeUrlParameters = {
     scopes: ["user.read"],
     redirectUri: redirectUri,
-    // prompt: "select_account",
   };
 
   req.msalClient
@@ -37,17 +52,22 @@ router.get("/login", (req, res) => {
     .then((response) => {
       res.redirect(response);
     })
-    .catch((error) => console.log(JSON.stringify(error)));
+    .catch((error) => {
+      logger.error("Error getting auth code URL:", error);
+      res.status(500).send("Error initiating login process");
+    });
 });
 
 router.get("/redirect", async (req, res) => {
   if (req.query.error) {
+    logger.error(`Authentication error: ${req.query.error_description}`);
     return res
       .status(500)
       .send(`Authentication error: ${req.query.error_description}`);
   }
 
   if (!req.query.code) {
+    logger.error("Authorization code not found in the request");
     return res.status(400).send("Authorization code not found in the request");
   }
 
@@ -55,7 +75,7 @@ router.get("/redirect", async (req, res) => {
   const tokenRequest = {
     code: req.query.code,
     scopes: ["user.read"],
-    redirectUri: getRedirectUri(req),
+    redirectUri: redirectUri,
   };
 
   try {
@@ -68,9 +88,16 @@ router.get("/redirect", async (req, res) => {
     // Here you would typically fetch the user's role from your database
     req.session.userRole = "Customer";
 
-    return res.redirect("/documents");
+    // Save the session before redirecting
+    req.session.save((err) => {
+      if (err) {
+        logger.error("Error saving session:", err);
+        return res.status(500).send("Error completing authentication");
+      }
+      return res.redirect("/documents");
+    });
   } catch (error) {
-    console.error("Error acquiring token:", error);
+    logger.error("Error acquiring token:", error);
     return res.status(500).send(`Authentication error: ${error.message}`);
   }
 });
@@ -82,7 +109,7 @@ router.get("/logout", (req, res) => {
 
   req.session.destroy((err) => {
     if (err) {
-      console.error("Error destroying session:", err);
+      logger.error("Error destroying session:", err);
     }
     res.clearCookie("connect.sid", { path: "/" }).redirect(logoutUri);
   });
