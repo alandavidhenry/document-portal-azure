@@ -6,8 +6,22 @@ const msal = require("@azure/msal-node");
 function getRedirectUri(req) {
   if (process.env.NODE_ENV === "production") {
     return `https://${req.get("host")}/auth/redirect`;
+  } else {
+    // For local development, use the HTTPS URL
+    return (
+      process.env.LOCAL_REDIRECT_URI || "http://localhost:3000/auth/redirect"
+    );
   }
-  return "http://localhost:3000/auth/redirect";
+}
+
+// Define a function to get the post-logout redirect URI
+function getPostLogoutRedirectUri(req) {
+  if (process.env.NODE_ENV === "production") {
+    return `https://${req.get("host")}/`;
+  } else {
+    // For local development, use the HTTPS URL
+    return process.env.LOCAL_URI || "http://localhost:3000/";
+  }
 }
 
 router.get("/login", (req, res) => {
@@ -15,6 +29,7 @@ router.get("/login", (req, res) => {
   const authCodeUrlParameters = {
     scopes: ["user.read"],
     redirectUri: redirectUri,
+    // prompt: "select_account",
   };
 
   req.msalClient
@@ -25,35 +40,51 @@ router.get("/login", (req, res) => {
     .catch((error) => console.log(JSON.stringify(error)));
 });
 
-router.get("/redirect", (req, res) => {
+router.get("/redirect", async (req, res) => {
+  if (req.query.error) {
+    return res
+      .status(500)
+      .send(`Authentication error: ${req.query.error_description}`);
+  }
+
+  if (!req.query.code) {
+    return res.status(400).send("Authorization code not found in the request");
+  }
+
   const redirectUri = getRedirectUri(req);
   const tokenRequest = {
     code: req.query.code,
     scopes: ["user.read"],
-    redirectUri: redirectUri,
+    redirectUri: getRedirectUri(req),
   };
 
-  req.msalClient
-    .acquireTokenByCode(tokenRequest)
-    .then((response) => {
-      req.session.isAuthenticated = true;
-      req.session.user = response.account;
+  try {
+    const response = await req.msalClient.acquireTokenByCode(tokenRequest);
 
-      // Here you would typically fetch the user's role from your database
-      // For this example, we'll just set a default role
-      req.session.userRole = "Admin";
+    req.session.isAuthenticated = true;
+    req.session.user = response.account;
+    req.session.accessToken = response.accessToken;
 
-      res.redirect("/documents");
-    })
-    .catch((error) => {
-      console.log(error);
-      res.status(500).send(error);
-    });
+    // Here you would typically fetch the user's role from your database
+    req.session.userRole = "Customer";
+
+    return res.redirect("/documents");
+  } catch (error) {
+    console.error("Error acquiring token:", error);
+    return res.status(500).send(`Authentication error: ${error.message}`);
+  }
 });
 
 router.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/");
+  const logoutUri = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(
+    getPostLogoutRedirectUri(req)
+  )}`;
+
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("Error destroying session:", err);
+    }
+    res.clearCookie("connect.sid", { path: "/" }).redirect(logoutUri);
   });
 });
 

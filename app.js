@@ -30,6 +30,15 @@ const msalConfig = {
     authority: `https://login.microsoftonline.com/${process.env.MICROSOFT_ENTRA_TENANT_ID}`,
     clientSecret: process.env.MICROSOFT_ENTRA_CLIENT_SECRET,
   },
+  system: {
+    loggerOptions: {
+      loggerCallback(loglevel, message, containsPii) {
+        console.log(message);
+      },
+      piiLoggingEnabled: false,
+      logLevel: "Info",
+    },
+  },
 };
 
 const msalClient = new msal.ConfidentialClientApplication(msalConfig);
@@ -40,7 +49,11 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === "production" },
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
   })
 );
 

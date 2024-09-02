@@ -1,5 +1,6 @@
 const isAuthenticated = (req, res, next) => {
-    if (req.session.isAuthenticated) {
+    if (req.session && req.session.isAuthenticated && req.session.user) {
+      // req.session && req.session.isAuthenticated && req.session.user
       return next();
     }
     res.redirect('/auth/login');
